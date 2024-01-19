@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://pyscript.net/alpha/pyscript.css" />
+    <script defer src="https://pyscript.net/alpha/pyscript.js"></script>
+    <title>人狼ゲーム</title>
+</head>
+<body>
+    <py-script>
+
+        <!-- ここからpythonで記述 -->
+
+        import tkinter
+        import tkinter.messagebox
+        import random
+        
+        # **********************************************************
+        
+        # チーム分けの親クラス
+        class Teams:
+            
+            # コンストラクタ
+            def __init__(self, name):
+                # プレイヤー名
+                self.name = name
+                # チーム名
+                self.myteam = ""
+                # 役職名
+                self.jobname = ""
+                # 役職の説明
+                self.jobcomment = "説明"
+                # 投票された数
+                self.vote = 0
+                # 人狼に狙われた数
+                self.jinros_target = 0
+                # 騎士に守られたか
+                self.kishis_gard = False
+                # 占い結果
+                self.uranaikekka = ""
+                # 生きているかどうか
+                self.is_arrive = True
+                # 勝利条件を満たしたらTrueになる
+                self.win = False
+                # 行動の文言
+                self.actflase = "疑う"
+                # サイコキラーやボマーと関わったか
+                self.abunai_koudou = False
+            
+            # 夜の行動でボタンを配置する
+            def button_at_night(self):
+                global shibousenkoku_label, name_label, name_button, players
+                
+                # ラベル
+                title_label = tkinter.Label(frame, text="夜の行動", font=("System", 24))
+                title_label.place(x=300, y=50)
+                title_label.update()
+                
+                # 投票時に選択した人の名前が表示される
+                def name_hyoji(i):
+                    # コールバック関数
+                    def a():
+                        global selected_player
+                        selected_player = players[i]
+                        selected_player_kakunin_label = tkinter.Label(frame, text=selected_player.name + "さんを選択中", bg="gray")
+                        selected_player_kakunin_label.place(x=400, y=200)
+                        selected_player_kakunin_label.update()
+                    return a
+                
+                # ボタン配置
+                for i in range(len(players)):
+                    if self.is_arrive == False:
+                        shibousenkoku_label = tkinter.Label(frame, text="あなたは死亡しています")
+                        shibousenkoku_label.place(x=200, y=200)
+                        break
+                    elif self.name == players[i].name:
+                        name_label = tkinter.Label(frame, text=players[i].name + "さん（あなた）", height=2, width=23, bg="lightblue", relief=tkinter.SOLID, bd=1)
+                        name_label.place(x=100, y=(200 + i * 50))
+                    elif players[i].is_arrive == False:
+                        name_label = tkinter.Label(frame, text=players[i].name + "さん <DEAD>", height=2, width=23, bg="lightgrey", relief=tkinter.SOLID, bd=1)
+                        name_label.place(x=100, y=(200 + i * 50))
+                    else:
+                        n = i
+                        name_button = tkinter.Button(frame, text=players[i].name + "さんを" + self.actflase, height=2, width=20, bg="lightblue", command=name_hyoji(n))
+                        name_button.place(x=100, y=(200 + i * 50))
+            
+            # 昼の投票でボタンを配置する
+            def button_at_daytime(self):
+                global shibousenkoku_label, name_label, name_button, players
+                
+                # ラベル
+                title_label = tkinter.Label(frame, text="投票", font=("System", 24))
+                title_label.place(x=300, y=50)
+                title_label.update()
+                
+                # 投票時に選択した人の名前が表示される
+                def name_hyoji(i):
+                    # コールバック関数
+                    def a():
+                        global selected_player
+                        selected_player = players[i]
+                        selected_player_kakunin_label = tkinter.Label(frame, text=selected_player.name + "さんを選択中", bg="gray")
+                        selected_player_kakunin_label.place(x=400, y=200)
+                        selected_player_kakunin_label.update()
+                    return a
+                
+                # ボタン配置
+                for i in range(len(players)):
+                    if self.is_arrive == False:
+                        shibousenkoku_label = tkinter.Label(frame, text="あなたは死亡しています")
+                        shibousenkoku_label.place(x=200, y=200)
+                        break
+                    elif self.name == players[i].name:
+                        name_label = tkinter.Label(frame, text=players[i].name + "さん（あなた）", height=2, width=23, bg="lightblue", relief=tkinter.SOLID, bd=1)
+                        name_label.place(x=100, y=(200 + i * 50))
+                    elif players[i].is_arrive == False:
+                        name_label = tkinter.Label(frame, text=players[i].name + "さん <DEAD>", height=2, width=23, bg="lightgrey", relief=tkinter.SOLID, bd=1)
+                        name_label.place(x=100, y=(200 + i * 50))
+                    else:
+                        n = i
+                        name_button = tkinter.Button(frame, text=players[i].name + "さんに投票する", height=2, width=20, bg="lightblue", command=name_hyoji(n))
+                        name_button.place(x=100, y=(200 + i * 50))
+            
+            # 夜の行動を定義する（基本形：選択されたプレイヤーの得票数を上げる）
+            def night_action(self, player):
+                player.add_vote()
+            
+            # 昼の行動を定義する
+            def daytime_action(self, player):
+                player.add_vote()
+            
+            # 投票数を増やす
+            def add_vote(self):
+                self.vote += 1
+        
+            # 投票数をゼロに戻す
+            def reset_vote(self):
+                self.vote = 0
+        
+            # 人狼に狙われた数を増やす
+            def add_jinros_target(self, num):
+                self.jinros_target += num
+        
+            # 人狼に狙われた数をゼロに戻す
+            def reset_jinros_target(self):
+                self.jinros_target = 0
+        
+            # 騎士に守られるようにする
+            def get_kishis_gard(self):
+                self.kishis_gard = True
+        
+            # 騎士のフラグをもとに戻す
+            def reset_kishis_gard(self):
+                self.kishis_gard = False
+            
+            # 勝利条件を満たしているか確かめる
+            def win_check(self):
+                pass
+            
+            # 役職名を返す
+            def get_jobname(self):
+                return self.jobname
+            
+            # 生きているフラグを外す
+            def set_dead(self):
+                self.is_arrive = False
+        
+        # **********************************************************
+        
+        # チームクラスを継承して人狼チームクラスを作る
+        class Jinro_team(Teams):
+            # 生存者をカウントする（クラス変数
+            live_count = 0
+            
+            # 人狼チームが勝ったかどうか
+            team_win = False
+            
+            # コンストラクタ
+            def __init__(self, name):
+                Teams.__init__(self, name)
+                self.myteam = "人狼チーム"
+            
+            # チームが勝利条件を満たしているか確かめる
+            def win_check(self):
+                if Jinro_team.live_count >= Shimin_team.live_count and Jinro_team.live_count > 0:
+                    Jinro_team.team_win = True
+                return Jinro_team.team_win
+            
+            # 自分が勝利しているか
+            def self_win_check(self):
+                if Jinro_team.live_count >= Shimin_team.live_count and Jinro_team.live_count > 0:
+                    self.win = True
+                return self.win
+            
+            # 生存者カウントを増やす
+            def live_count_up(self):
+                Jinro_team.live_count += 1
+            
+            # 生存者カウントを減らす
+            def live_count_down(self):
+                Jinro_team.live_count -= 1
+        
+        # **********************************************************
+        
+        # チームクラスを継承して市民チームクラスを作る
+        class Shimin_team(Teams):
+            # 生存者をカウントする（クラス変数
+            live_count = 0
+            
+            # 市民チームが勝ったかどうか
+            team_win = False
+            
+            # コンストラクタ
+            def __init__(self, name):
+                Teams.__init__(self, name)
+                self.myteam = "市民チーム"
+            
+            # チームが勝利条件を満たしているか確かめる
+            def win_check(self):
+                if Jinro_team.live_count == 0 and Shimin_team.live_count > 0:
+                    Shimin_team.team_win = True
+                return Shimin_team.team_win
+            
+            # 自分が勝利しているか
+            def self_win_check(self):
+                if Jinro_team.live_count == 0 and Shimin_team.live_count > 0:
+                    self.win = True
+                return self.win
+            
+            # 生存者カウントを増やす
+            def live_count_up(self):
+                Shimin_team.live_count += 1
+            
+            # 生存者カウントを減らす
+            def live_count_down(self):
+                Shimin_team.live_count -= 1
+        
+        # **********************************************************
+        
+        # チームクラスを継承してその他チームクラスを作る
+        class Sonota_team(Teams):
+            # 生存者をカウントする（クラス変数
+            live_count = 0
+            
+            # コンストラクタ
+            def __init__(self, name):
+                Teams.__init__(self, name)
+            
+            # 勝利条件を満たしているか確かめる
+            def self_win_check(self):
+                pass
+            
+            # 生存者カウントを増やす
+            def live_count_up(self):
+                Sonota_team.live_count += 1
+            
+            # 生存者カウントを減らす
+            def live_count_down(self):
+                Sonota_team.live_count -= 1
+        
+        # **********************************************************
+            
+        # 人狼チームクラスを継承して人狼クラスを作る
+        class Jinro(Jinro_team):
+            # コンストラクタ
+            def __init__(self, name):
+                Jinro_team.__init__(self, name)
+                self.jobname = "人狼"
+                self.uranaikekka = "人狼"
+                self.jobcomment = "市民になりすまし、市民を殺害する。人狼同士は誰が人狼かわかる。市民チームの数が人狼と同数になれば人狼チームの勝利。"
+            
+            # 夜の行動でボタンを配置する
+            def button_at_night(self):
+                global shibousenkoku_label, name_label, name_button, players
+                
+                # ラベル
+                title_label = tkinter.Label(frame, text="夜の行動", font=("System", 24))
+                title_label.place(x=300, y=50)
+                title_label.update()
+                
+                # 投票時に選択した人の名前が表示される
+                def name_hyoji(i):
+                    # コールバック関数
+                    def a():
+                        global selected_player
+                        selected_player = players[i]
+                        selected_player_kakunin_label = tkinter.Label(frame, text=selected_player.name + "さんを選択中", bg="gray")
+                        selected_player_kakunin_label.place(x=400, y=200)
+                        selected_player_kakunin_label.update()
+                    return a
+                
+                # ボタン配置
+                for i in range(len(players)):
+                    if self.is_arrive == False:
+                        shibousenkoku_label = tkinter.Label(frame, text="あなたは死亡しています")
+                        shibousenkoku_label.place(x=200, y=200)
+                        break
+                    elif self.name == players[i].name:
+                        name_label = tkinter.Label(frame, text=players[i].name + "さん（あなた）", height=2, width=23, bg="lightblue", relief=tkinter.SOLID, bd=1)
+                        name_label.place(x=100, y=(200 + i * 50))
+                    elif players[i].is_arrive == False:
+                        name_label = tkinter.Label(frame, text=players[i].name + "さん <DEAD>", height=2, width=23, bg="lightblue", relief=tkinter.SOLID, bd=1)
+                        name_label.place(x=100, y=(200 + i * 50))
+                    elif players[i].jobname == "人狼":
+                        name_label = tkinter.Label(frame, text=players[i].name + "さん （人狼）", height=2, width=23, bg="lightblue", relief=tkinter.SOLID, bd=1)
+                        name_label.place(x=100, y=(200 + i * 50))
+                    else:
+                        n = i
+                        name_button = tkinter.Button(frame, text=players[i].name + "さんを狙う", height=2, width=20, bg="lightblue", command=name_hyoji(n))
+                        if players[i].jinros_target > 0:
+                            name_button["text"] = players[i].name + "さんを狙う\n<他の人狼が狙っています>"
+                        name_button.place(x=100, y=(200 + i * 50))
+            
+            # 夜の行動（選択されたプレイヤーと狙い度が引数）
+            def night_action(self, player, num):
+                player.add_jinros_target(num)
+        
+        # 人狼チームクラスを継承して多重人格クラスを作る
+        class Tajujinkaku(Jinro_team):
+            # コンストラクタ
+            def __init__(self, name):
+                Jinro_team.__init__(self, name)
+                self.jobname = "多重人格"
+                self.uranaikekka = "人間"
+                self.jobcomment = "人狼チームに所属する人間。"
+            
+            # 人間の生存者カウントを増やす
+            def live_count_up(self):
+                Shimin_team.live_count += 1
+            
+            # 人間の生存者カウントを減らす
+            def live_count_down(self):
+                Shimin_team.live_count -= 1
+        
+        # 人狼チームクラスを継承して脱獄犯クラスを作る
+        class Datsugokuhan(Jinro_team):
+            # コンストラクタ
+            def __init__(self, name):
+                Jinro_team.__init__(self, name)
+                self.jobname = "脱獄犯"
+                self.uranaikekka = "人間"
+                self.jobcomment = "人狼チームに所属する人間。人狼に狙われても逃れられる。"
+            
+            # 人間の生存者カウントを増やす
+            def live_count_up(self):
+                Shimin_team.live_count += 1
+            
+            # 人間の生存者カウントを減らす
+            def live_count_down(self):
+                Shimin_team.live_count -= 1
+        
+        # 人狼チームクラスを継承してサイコキラークラスを作る
+        class Saikokira(Jinro_team):
+            # コンストラクタ
+            def __init__(self, name):
+                Jinro_team.__init__(self, name)
+                self.jobname = "サイコキラー"
+                self.uranaikekka = "人間"
+                self.jobcomment = "人狼チームに所属する人間。夜に関わったプレイヤーは殺害される（占い師、騎士、人狼など）。"
+            
+            # 人間の生存者カウントを増やす
+            def live_count_up(self):
+                Shimin_team.live_count += 1
+            
+            # 人間の生存者カウントを減らす
+            def live_count_down(self):
+                Shimin_team.live_count -= 1
+        
+        # **********************************************************
+        
+        # 市民チームクラスを継承して市民クラスを作る
+        class Shimin(Shimin_team):
+            # コンストラクタ
+            def __init__(self, name):
+                Shimin_team.__init__(self, name)
+                self.jobname = "市民"
+                self.uranaikekka = "人間"
+                self.jobcomment = "特殊能力を持たない一般的な市民。人狼を全滅させると市民チームの勝利。"
+        
+        # 市民チームクラスを継承して占い師クラスを作る
+        class Uranaishi(Shimin_team):
+            # コンストラクタ
+            def __init__(self, name):
+                Shimin_team.__init__(self, name)
+                self.jobname = "占い師"
+                self.uranaikekka = "人間"
+                self.actflase = "占う"
+                self.jobcomment = "特殊能力を持つ市民。毎晩1人、プレイヤーが人狼か人間かを確認できる。"
+            
+            # 夜の行動
+            def night_action(self, player):
+                tkinter.messagebox.showinfo("情報", player.name + "さんは" + player.uranaikekka + "です")
+                if player.jobname == "サイコキラー" or (player.jobname == "ボマー" and player.bakudan_flag == 1):
+                    self.abunai_koudou = True
+            
+        # 市民チームクラスを継承して霊媒師クラスを作る
+        class Reibaishi(Shimin_team):
+            # コンストラクタ
+            def __init__(self, name):
+                Shimin_team.__init__(self, name)
+                self.jobname = "霊媒師"
+                self.uranaikekka = "人間"
+                self.jobcomment = "特殊能力を持つ市民。死亡したプレイヤーが人狼か人間かを確認できる。"
+            
+            # 夜の行動でボタンを配置する
+            def button_at_night(self):
+                global shibousenkoku_label, name_label, name_button, players
+                
+                # ラベル
+                title_label = tkinter.Label(frame, text="夜の行動", font=("System", 24))
+                title_label.place(x=300, y=50)
+                title_label.update()
+                
+                # 投票時に選択した人の名前が表示される
+                def name_hyoji(i):
+                    # コールバック関数
+                    def a():
+                        global selected_player
+                        selected_player = players[i]
+                        selected_player_kakunin_label = tkinter.Label(frame, text=selected_player.name + "さんを選択中", bg="gray")
+                        selected_player_kakunin_label.place(x=400, y=200)
+                        selected_player_kakunin_label.update()
+                    return a
+                
+                # ボタン配置
+                for i in range(len(players)):
+                    if self.is_arrive == False:
+                        shibousenkoku_label = tkinter.Label(frame, text="あなたは死亡しています")
+                        shibousenkoku_label.place(x=200, y=200)
+                        break
+                    elif self.name == players[i].name:
+                        name_label = tkinter.Label(frame, text=players[i].name + "さん（あなた）", height=2, width=23, bg="lightblue", relief=tkinter.SOLID, bd=1)
+                        name_label.place(x=100, y=(200 + i * 50))
+                    elif players[i].is_arrive == False:
+                        name_label = tkinter.Label(frame, text=players[i].name + "さん <DEAD>\n" + players[i].jobname, height=2, width=23, bg="lightblue", relief=tkinter.SOLID, bd=1)
+                        name_label.place(x=100, y=(200 + i * 50))
+                    else:
+                        n = i
+                        name_button = tkinter.Button(frame, text=players[i].name + "さんを" + self.actflase, height=2, width=20, bg="lightblue", command=name_hyoji(n))
+                        name_button.place(x=100, y=(200 + i * 50))
+                
+        
+        # 市民チームクラスを継承して騎士クラスを作る
+        class Kishi(Shimin_team):
+            # コンストラクタ
+            def __init__(self, name):
+                Shimin_team.__init__(self, name)
+                self.jobname = "騎士"
+                self.uranaikekka = "人間"
+                self.actflase = "守る"
+                self.jobcomment = "特殊能力を持つ市民。毎晩1人、人狼の襲撃から守ることができる。"
+            
+            # 夜の行動
+            def night_action(self, player):
+                if player.jobname == "サイコキラー" or (player.jobname == "ボマー" and player.bakudan_flag == 1):
+                    self.abunai_koudou = True
+                else:
+                    player.get_kishis_gard()
+                
+        # 市民チームクラスを継承して信託者クラスを作る
+        class Shintakusha(Shimin_team):
+            # コンストラクタ
+            def __init__(self, name):
+                Shimin_team.__init__(self, name)
+                self.jobname = "信託者"
+                self.uranaikekka = "人間"
+                self.jobcomment = "特殊能力を持つ市民。最初の夜に人間を1人だけ知ることができる。"
+            
+            # 初夜の行動と次以降の行動を分ける
+            def button_at_night(self):
+                global shibousenkoku_label, name_label, name_button, players
+                
+                # ラベル
+                title_label = tkinter.Label(frame, text="夜の行動", font=("System", 24))
+                title_label.place(x=300, y=50)
+                title_label.update()
+                
+                # 投票時に選択した人の名前が表示される
+                def name_hyoji(i):
+                    # コールバック関数
+                    def a():
+                        global selected_player
+                        selected_player = players[i]
+                        selected_player_kakunin_label = tkinter.Label(frame, text=selected_player.name + "さんを選択中", bg="gray")
+                        selected_player_kakunin_label.place(x=400, y=200)
+                        selected_player_kakunin_label.update()
+                    return a
+                
+                # 初夜
+                if day_counter == 1:
+                    # ランダムに人間を一人選ぶ
+                    for i in range(len(players)*10):
+                        choiced_player = random.sample(players, len(players))
+                        if choiced_player[0].uranaikekka == "人間" and choiced_player[0].name != self.name:
+                            break
+         
+                    # 初夜のボタン配置
+                    for i in range(len(players)):
+                        if self.is_arrive == False:
+                            shibousenkoku_label = tkinter.Label(frame, text="あなたは死亡しています")
+                            shibousenkoku_label.place(x=200, y=200)
+                            break
+                        elif self.name == players[i].name:
+                            name_label = tkinter.Label(frame, text=players[i].name + "さん（あなた）", height=2, width=23, bg="lightblue", relief=tkinter.SOLID, bd=1)
+                            name_label.place(x=100, y=(200 + i * 50))
+                        elif players[i].is_arrive == False:
+                            name_label = tkinter.Label(frame, text=players[i].name + "さん <DEAD>", height=2, width=23, bg="lightgrey", relief=tkinter.SOLID, bd=1)
+                            name_label.place(x=100, y=(200 + i * 50))
+                        elif players[i].name == choiced_player[0].name:
+                            name_label = tkinter.Label(frame, text=players[i].name + "さん <" + players[i].uranaikekka + ">", height=2, width=23, bg="lightgrey", relief=tkinter.SOLID, bd=1)
+                            name_label.place(x=100, y=(200 + i * 50))
+                        else:
+                            n = i
+                            name_button = tkinter.Button(frame, text=players[i].name + "さんを" + self.actflase, height=2, width=20, bg="lightblue", command=name_hyoji(n))
+                            name_button.place(x=100, y=(200 + i * 50))
+                else:
+                    # 通常のボタン配置
+                    for i in range(len(players)):
+                        if self.is_arrive == False:
+                            shibousenkoku_label = tkinter.Label(frame, text="あなたは死亡しています")
+                            shibousenkoku_label.place(x=200, y=200)
+                            break
+                        elif self.name == players[i].name:
+                            name_label = tkinter.Label(frame, text=players[i].name + "さん（あなた）", height=2, width=23, bg="lightblue", relief=tkinter.SOLID, bd=1)
+                            name_label.place(x=100, y=(200 + i * 50))
+                        elif players[i].is_arrive == False:
+                            name_label = tkinter.Label(frame, text=players[i].name + "さん <DEAD>", height=2, width=23, bg="lightgrey", relief=tkinter.SOLID, bd=1)
+                            name_label.place(x=100, y=(200 + i * 50))
+                        else:
+                            n = i
+                            name_button = tkinter.Button(frame, text=players[i].name + "さんを" + self.actflase, height=2, width=20, bg="lightblue", command=name_hyoji(n))
+                            name_button.place(x=100, y=(200 + i * 50))
+        
+        # 市民チームクラスを継承してコスプレイヤークラスを作る
+        class Kosupureiya(Shimin_team):
+            # コンストラクタ
+            def __init__(self, name):
+                Shimin_team.__init__(self, name)
+                self.jobname = "コスプレイヤー"
+                self.uranaikekka = "人狼"
+                self.actflase = "守る"
+                self.jobcomment = "特殊能力を持つ市民。毎晩1人、人狼の襲撃から守ることができる。占われた場合、人狼と判断される。"
+            
+            # 夜の行動
+            def night_action(self, player):
+                if player.jobname == "サイコキラー" or (player.jobname == "ボマー" and player.bakudan_flag == 1):
+                    self.abunai_koudou = True
+                else:
+                    player.get_kishis_gard()
+        
+        # 市民チームクラスを継承してボマークラスを作る
+        class Boma(Shimin_team):
+            # コンストラクタ
+            def __init__(self, name):
+                Shimin_team.__init__(self, name)
+                self.jobname = "ボマー"
+                self.uranaikekka = "人間"
+                self.jobcomment = "特殊能力を持つ市民。ゲーム中一回だけ爆弾を設置できる。爆弾起動中に関わったプレイヤーは死亡する。"
+                # 0:起動前、1:起動中、2:起動不可
+                self.bakudan_flag = 0
+            
+            # 夜の行動でボタンを配置する
+            def button_at_night(self):
+                global shibousenkoku_label, name_label, name_button, players, bakudan_button, bakudan_hyouji
+                
+                # ラベル
+                title_label = tkinter.Label(frame, text="夜の行動", font=("System", 24))
+                title_label.place(x=300, y=50)
+                title_label.update()
+                
+                # 爆弾ON/OFF切り替え
+                def bakudan_kirikae():
+                    if self.bakudan_flag == 0:
+                        self.bakudan_flag = 1
+                        bakudan_hyouji["text"] = "ON"
+                        bakudan_hyouji["bg"] = "red"
+                        bakudan_hyouji.update()
+                    elif self.bakudan_flag == 1:
+                        self.bakudan_flag = 0
+                        bakudan_hyouji["text"] = "OFF"
+                        bakudan_hyouji["bg"] = "lightgrey"
+                        bakudan_hyouji.update()
+                
+                # 爆弾を設置するかどうかのボタン
+                bakudan_button = tkinter.Button(frame, text="爆弾起動スイッチ", height=2, width=10, command=bakudan_kirikae)
+                bakudan_button.place(x=100, y=170)
+                
+                # 爆弾が起動しているかどうか表示
+                bakudan_hyouji = tkinter.Label(frame, text="OFF", height=2, width=3, bg="lightgrey")
+                bakudan_hyouji.place(x=250, y=173)
+                
+                if self.bakudan_flag == 2:
+                    self.bakudan_hyouji.destroy()
+                    self.bakudan_button.destroy()
+                
+                # 投票時に選択した人の名前が表示される
+                def name_hyoji(i):
+                    # コールバック関数
+                    def a():
+                        global selected_player
+                        selected_player = players[i]
+                        selected_player_kakunin_label = tkinter.Label(frame, text=selected_player.name + "さんを選択中", bg="gray")
+                        selected_player_kakunin_label.place(x=400, y=200)
+                        selected_player_kakunin_label.update()
+                    return a
+                
+                # ボタン配置
+                for i in range(len(players)):
+                    if self.is_arrive == False:
+                        shibousenkoku_label = tkinter.Label(frame, text="あなたは死亡しています")
+                        shibousenkoku_label.place(x=200, y=200)
+                        break
+                    elif self.name == players[i].name:
+                        name_label = tkinter.Label(frame, text=players[i].name + "さん（あなた）", height=2, width=23, bg="lightblue", relief=tkinter.SOLID, bd=1)
+                        name_label.place(x=100, y=(250 + i * 50))
+                    elif players[i].is_arrive == False:
+                        name_label = tkinter.Label(frame, text=players[i].name + "さん <DEAD>", height=2, width=23, bg="lightgrey", relief=tkinter.SOLID, bd=1)
+                        name_label.place(x=100, y=(250 + i * 50))
+                    else:
+                        n = i
+                        name_button = tkinter.Button(frame, text=players[i].name + "さんを" + self.actflase, height=2, width=20, bg="lightblue", command=name_hyoji(n))
+                        name_button.place(x=100, y=(250 + i * 50))
+        
+        
+        # **********************************************************
+        
+        # その他チームクラスを継承して吸血鬼クラスを作る
+        class Kyuketsuki(Sonota_team):
+            # コンストラクタ
+            def __init__(self, name):
+                Sonota_team.__init__(self, name)
+                self.jobname = "吸血鬼"
+                self.uranaikekka = "人間"
+            
+            # 勝利条件を満たしているか確かめる
+            def self_win_check(self):
+                if self.is_arrive:
+                    self.win = True
+                return self.win
+        
+        # **********************************************************
+        
+        # 役職クラスを格納しておく
+        yakushoku_ichiran = [
+            Jinro,
+            Tajujinkaku,
+            Datsugokuhan,
+            Saikokira,
+            Shimin,
+            Uranaishi,
+            Reibaishi,
+            Kishi,
+            Shintakusha,
+            Kosupureiya,
+            Boma
+        ]
+        
+        # 役職名
+        yakushokumei = [
+            "＜人狼＞　チーム：人狼　占い結果：人狼",
+            "＜多重人格＞　チーム：人狼　占い結果：人間",
+            "＜脱獄犯＞　チーム：人狼　占い結果：人間",
+            "＜サイコキラー＞　チーム：人狼　占い結果：人間",
+            "＜市民＞　チーム：市民　占い結果：人間",
+            "＜占い師＞　チーム：市民　占い結果：人間",
+            "＜霊媒師＞　チーム：市民　占い結果：人間",
+            "＜騎士＞　チーム：市民　占い結果：人間",
+            "＜信託者＞　チーム：市民　占い結果：人間",
+            "＜コスプレイヤー＞　チーム：市民　占い結果：人狼",
+            "＜ボマー＞　チーム：市民　占い結果：人間"
+        ]
+        
+        # 役職の説明
+        yakushokusetsumei = [
+            "市民になりすまし、市民を殺害する。人狼同士は誰が人狼かわかる。市民チームの数が人狼と同数になれば人狼チームの勝利。",
+            "人狼チームに所属する人間。",
+            "人狼チームに所属する人間。人狼に狙われても逃れられる。",
+            "人狼チームに所属する人間。夜に関わったプレイヤーは殺害される（占い師、騎士、人狼など）。",
+            "特殊能力を持たない一般的な市民。人狼を全滅させると市民チームの勝利。",
+            "特殊能力を持つ市民。毎晩1人、プレイヤーが人狼か人間かを確認できる。",
+            "特殊能力を持つ市民。死亡したプレイヤーが人狼か人間かを確認できる。",
+            "特殊能力を持つ市民。毎晩1人、人狼の襲撃から守ることができる。",
+            "特殊能力を持つ市民。最初の夜に人間を1人だけ知ることができる。",
+            "特殊能力を持つ市民。毎晩1人、人狼の襲撃から守ることができる。占われた場合、人狼と判断される。",
+            "特殊能力を持つ市民。ゲーム中一回だけ爆弾を設置できる。爆弾起動中に関わったプレイヤーは死亡する。"
+        ]
+        
+        # **********************************************************
+        # **********************************************************
+        
+        # 画面遷移のためのインデックス
+        index = 0
+        
+        # ウィンドウ
+        root = tkinter.Tk()
+        root.title("人狼ゲーム")
+        root.geometry("800x600")
+        
+        # カンヴァス
+        canvas = tkinter.Canvas(root)
+        
+        # フレーム
+        frame = tkinter.Frame(canvas)
+        
+        # スクロールバー
+        scrollbar = tkinter.Scrollbar(canvas, orient=tkinter.VERTICAL, command=canvas.yview)
+        canvas.configure(scrollregion=(0, 0, 900, 1500))
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side=tkinter.RIGHT, fill=tkinter.Y)
+        canvas.pack(expand=True, fill=tkinter.BOTH)
+        canvas.create_window((0, 0), window=frame, anchor="nw", width=900, height=1500)
+        # スクロールバーの分割数を設定する
+        bunkatsu = 20
+        
+        # マウスホイールでybarをスクロールする
+        def y_scrolling(event):
+            
+            global bunkatsu, scrollbar
+            
+            # マウスホイールをしたスクロールした場合：xbarはプラス、ybarはマイナス
+            ybar_pos = scrollbar.get()
+            ybar_wid = ybar_pos[1] - ybar_pos[0]
+            move_yd = ybar_pos[0]
+            
+            ybar_max = 1 - ybar_wid
+            
+            # ybarの場合、マウスを上スクロールするとevent.deltaは負、下スクロールすると正の値を取得します。
+            if event.delta < 0:
+                n_splity = 1 *(ybar_max / bunkatsu)
+            elif event.delta > 0:
+                n_splity = -1 *(ybar_max / bunkatsu)
+            else:
+                n_splity= 1 *(ybar_max / bunkatsu)
+            
+            move_yd += n_splity
+            
+            if move_yd < 0:
+                move_yd = 0
+            elif move_yd >= ybar_max:
+                move_yd = ybar_max
+            else:
+                pass
+            
+            canvas.yview_moveto(move_yd)
+        
+        # マウスホイールを使った時にスクロール実行
+        root.bind("<MouseWheel>", y_scrolling)
+        
+        # **********************************************************
+        # 関数で使う変数
+        # **********************************************************
+        
+        # 何日目かカウントする変数
+        day_counter = 0
+        
+        # プレイヤー数の入力を受け取る変数
+        player_num = 2
+        
+        # 名前入力用ラベル
+        player_widget_label = []
+            
+        # 名前入力欄
+        player_widget = []
+        
+        # プレイヤー名の入力を受け取る
+        player_name = []
+        
+        # 役職名と人数を書くラベル
+        yakushoku_name_label = []
+        
+        # 役職の説明を書くラベル
+        yakushoku_counter_label = []
+        
+        # 役職の人数をプラスするボタン
+        yakushoku_num_ups = []
+        
+        # 役職の人数をマイナスするボタン
+        yakushoku_num_downs = []
+        
+        # 役職リストと人数の設定
+        jinro_num = 1
+        tajujinkaku_num = 0
+        datsugokuhan_num = 0
+        saikokira_num = 0
+        shimin_num = 1
+        uranaishi_num = 0
+        reibaishi_num = 0
+        kishi_num = 0
+        shintakusha_num = 0
+        kosupureiya_num = 0
+        boma_num = 0
+        
+        # 役職の人数をリストに入れておく
+        yakushoku_nums = [
+            jinro_num,
+            tajujinkaku_num,
+            datsugokuhan_num,
+            saikokira_num,
+            shimin_num,
+            uranaishi_num,
+            reibaishi_num,
+            kishi_num,
+            shintakusha_num,
+            kosupureiya_num,
+            boma_num,
+        ]
+        
+        # 人狼の名前を入れておくリスト
+        jinros = []
+        
+        # プレイヤーインスタンスを格納するリスト
+        players = []
+        
+        # ランダムな値を選ぶためのリスト
+        num_list = []
+        
+        # 夜の行動のボタンを入れるやつ
+        name_labels = []
+        name_buttons = []
+        name_label_counter = 0
+        name_button_counter = 0
+        shibousenkoku_label_counter = 0
+        
+        # 行動中のプレイヤー
+        koudoutyu = 0
+        
+        # **********************************************************
+        # **********************************************************
+        
+        def main():
+        
+            global index, gamestart_button, title_label, player_num, plus_button, minus_button, num_kettei_button, name_kettei_button, jinro_num, tajujinkaku_num, datsugokuhan_num, saikokira_num, shimin_num, uranaishi_num, shimin_num, uranaishi_num, reibaishi_num, kishi_num, shintakusha_num, kosupureiya_num, boma_num, koudoutyu,day_counter
+            global yakushoku_ichiran, player_widget_label, player_widget, players,player_name, yakushoku_name_label, yakushoku_counter_label, yakushoku_num_ups, yakushoku_num_downs, yakushokumei, yakushokusetsumei, yakushoku_nums, player_name, jinros, num_list
+            global player_num_label, yakushoku_kettei_button, settei_setsumei_label, ryokai_button, name_labels, name_buttons, name_label_counter, name_button_counter, shibousenkoku_label_counter
+            
+            # **********************************************************
+            # << 関数内関数を定義 >>
+            # **********************************************************
+            
+            # インデックスをxにする
+            def next_page(x):
+                global index
+                index = x
+                main()
+        
+            # プレイヤー数を1プラスする
+            def player_count_up():
+                global player_num
+                player_num += 1
+                player_num_label["text"] = str(player_num) + "人"
+                player_num_label.update()
+        
+            # プレイヤー数を1マイナスする
+            def player_count_down():
+                global player_num
+                if player_num > 0:
+                    player_num -= 1
+                    player_num_label["text"] = str(player_num) + "人"
+                    player_num_label.update()
+            
+            # 入力欄を追加する
+            def add_widget(x):
+                for i in range(x):
+                    # ラベル
+                    player_widget_label.append(tkinter.Label(frame, text=str(i+1)+"番目のプレイヤー：", font=("System", 20)))
+                    player_widget_label[i].place(x=100, y=(200 + i * 50))
+                    # 入力欄
+                    player_widget.append(tkinter.Entry(frame))
+                    player_widget[i].place(x=300, y=(200 + i * 50))
+            
+            # プレイヤー名をリストに格納する
+            def put_playername():
+                global player_num, player_widget, player_name, index
+                for i in range(player_num):
+                    if player_widget[i].get() == "":
+                        player_name.append("プレイヤー" + str(i+1))
+                    else:
+                        player_name.append(player_widget[i].get())
+                index = 3
+                main()
+            
+            # 役職選択時のボタンの動き
+            def yakushoku_count_up(i, x):
+                global yakushoku_nums, yakushoku_counter_label
+                # コールバック関数
+                def a():
+                    if (yakushoku_nums[i] + x) < 0:
+                        pass
+                    else:
+                        yakushoku_nums[i] += x
+                    yakushoku_counter_label[i]["text"] = str(yakushoku_nums[i]) + "人"
+                    yakushoku_counter_label[i].update()
+                return a
+            
+            # 役職人数決定ボタンが押された後の動き
+            def yakushokuketteigo():
+                
+                # 役職の合計人数を入れる
+                yakushoku_nums_goukei = 0
+                for i in yakushoku_nums:
+                    yakushoku_nums_goukei += i
+                
+                # 合計とプレイ人数が一致しているか確認
+                furiwake_nokori = player_num - yakushoku_nums_goukei
+                if furiwake_nokori < 0:
+                    tkinter.messagebox.showinfo("情報", "プレイ人数を超えています\n（残り" + str(furiwake_nokori) + "人）")
+                elif furiwake_nokori > 0:
+                    tkinter.messagebox.showinfo("情報", "プレイ人数を満たしていません\n（残り" + str(furiwake_nokori) + "人）")
+                else:
+                    # 後続処理
+                    
+                    # プレイヤーを入れる枠
+                    for i in range(player_num):
+                        players.append(Teams(""))
+                    
+                    # ランダムな数を作るための処理
+                    for i in range(player_num):
+                        num_list.append(i)
+                    # 人数分の数字(0~)をランダムに並び替える
+                    num_list_random = random.sample(num_list, len(num_list))
+                    
+                    # 各役職の人数分だけ、ランダムに選ばれたプレイヤーからインスタンス作成
+                    # 役職クラス毎の操作
+                    for i in range(len(yakushoku_ichiran)):
+                        
+                        global rand_jinros, index
+                        
+                        # 役職クラスを格納しておく
+                        make_instans_class = yakushoku_ichiran[i]
+                        
+                        # 役職毎の人数分だけ繰り返す
+                        for j in range(yakushoku_nums[i]):
+                            # ランダムにプレイヤーを抽出（ランダムに数字が並べ替えられたリストの先頭を取り出し、リストから削除する）
+                            selected_player = num_list_random.pop(0)
+                            # 選ばれたプレイヤーの名前を格納しておく
+                            selected_player_name = player_name[selected_player]
+                            # インスタンスを作成してプレイヤーに役職を与える
+                            players[selected_player] = make_instans_class(selected_player_name)
+                            # 作成されたインスタンスが人狼なら人狼の名前リストに追加する
+                            if i == 0:
+                                jinros.append(players[selected_player].name)
+                            # 生存者カウントを増やす
+                            players[selected_player].live_count_up()
+                    
+                    # 人狼の名前リストの順番をランダムにしておく
+                    rand_jinros = random.sample(jinros, len(jinros))
+                    
+                    # 次の画面へ
+                    index = 4
+                    main()
+                        
+            
+            # **********************************************************
+            # ******************** ここから画面の動き *********************
+            # **********************************************************
+            
+            # **********************************************************
+            # 第１画面　タイトル
+            # **********************************************************
+        
+            if index == 0:
+                
+                # ボタンを消す
+                children = frame.winfo_children()
+                for child in children:
+                    child.destroy()
+        
+                # ラベル
+                title_label = tkinter.Label(frame, text="人狼ゲーム", font=("System", 24))
+                title_label.place(x=300, y=50)
+        
+                # 開始ボタン
+                gamestart_button = tkinter.Button(frame, text="ゲーム開始（設定画面へ）", font=("Times New Roman", 24), command=lambda:next_page(1))
+                gamestart_button.place(x=200, y=200)
+                
+            # **********************************************************
+            # 第２画面　人数選択
+            # **********************************************************
+                
+            elif index == 1:
+                
+                # ボタンを消す
+                children = frame.winfo_children()
+                for child in children:
+                    child.destroy()
+                
+                # ラベル
+                title_label = tkinter.Label(frame, text="人数の設定", font=("System", 24))
+                title_label.place(x=300, y=50)
+                
+                # プレイヤー数を表示するラベル
+                player_num_label = tkinter.Label(frame, text=str(player_num) + "人", font=("System", 24))
+                player_num_label.place(x=200, y=200)
+                
+                plus_button = tkinter.Button(frame, text="+", font=("Times New Roman", 24), command=player_count_up)
+                plus_button.place(x=300, y=200)
+                
+                minus_button = tkinter.Button(frame, text="-", font=("Times New Roman", 24), command=player_count_down)
+                minus_button.place(x=340, y=200)
+                
+                # 決定ボタン
+                num_kettei_button = tkinter.Button(frame, text="人数確定", font=("Times New Roman", 24), command=lambda:next_page(2))
+                num_kettei_button.place(x=200, y=300)
+            
+            # **********************************************************
+            # 第２画面　名前入力画面
+            # **********************************************************
+            
+            elif index == 2:
+                
+                # ボタンを消す
+                children = frame.winfo_children()
+                for child in children:
+                    child.destroy()
+                    
+                # ラベル
+                title_label = tkinter.Label(frame, text="名前の設定", font=("System", 24))
+                title_label.place(x=300, y=50)
+                
+                # 人数分の入力ボタンを用意する
+                add_widget(player_num)
+                
+                # 名前の入力完了ボタン
+                name_kettei_button = tkinter.Button(frame, text="名前の入力を終える", font=("Times New Roman", 24), command=put_playername)
+                name_kettei_button.place(x=200, y=100)
+                
+            # **********************************************************
+            # 第３画面　役職選択
+            # **********************************************************
+        
+            elif index == 3:
+                
+                # ボタンを消す
+                children = frame.winfo_children()
+                for child in children:
+                    child.destroy()
+                
+                # ラベル
+                title_label = tkinter.Label(frame, text="役職の設定", font=("System", 24))
+                title_label.place(x=300, y=50)
+                
+                # リセット
+                name_kettei_button.destroy()
+                for i in range(len(player_widget_label)):
+                    player_widget_label[i].destroy()
+                    player_widget[i].destroy()
+                    
+                # ボタンの配置
+                for i in range(len(yakushokumei)):
+                    # 役職説明ラベル
+                    yakushoku_name_label.append(tkinter.Label(frame, text=yakushokumei[i] + "\n" + yakushokusetsumei[i], font=("System", 15), bg="grey", height=4, width=43, wraplength=430, anchor=tkinter.W, justify=tkinter.LEFT))
+                    yakushoku_name_label[i].place(x=30, y=(150 + i * 90))
+                    # 役職の人数ラベル
+                    yakushoku_counter_label.append(tkinter.Label(frame, text=str(yakushoku_nums[i]) + "人", font=("System", 21), bg="grey", height=3, width=4))
+                    yakushoku_counter_label[i].place(x=470, y=(150 + i * 90))
+                    # 人数プラスボタン
+                    yakushoku_num_ups.append(tkinter.Button(frame, text="+", font=("Times New Roman", 12), height=2, width=1, command=yakushoku_count_up(i, 1)))
+                    yakushoku_num_ups[i].place(x=530, y=((148 + i * 90)))
+                    # 人数マイナスボタン
+                    yakushoku_num_downs.append(tkinter.Button(frame, text="-", font=("Times New Roman", 12), height=2, width=1, command=yakushoku_count_up(i, -1)))
+                    yakushoku_num_downs[i].place(x=530, y=((188 + i * 90)))
+                
+                # 役職人数決定ボタン
+                yakushoku_kettei_button = tkinter.Button(frame, text="役職決定", font=("Times New Roman", 24), command=yakushokuketteigo)
+                yakushoku_kettei_button.place(x=200, y=100)
+        
+            # **********************************************************   
+            # -----以後、[players]リストを使って操作する-----
+            # **********************************************************
+            
+            # **********************************************************
+            # 第４画面　ゲーム毎の詳細設定
+            # **********************************************************
+            
+            elif index == 4:
+                
+                # ボタンを消す
+                children = frame.winfo_children()
+                for child in children:
+                    child.destroy()
+                
+                # ラベル
+                title_label = tkinter.Label(frame, text="設定の確認", font=("System", 24))
+                title_label.place(x=300, y=50)
+                
+                # リセット
+                yakushoku_kettei_button.destroy()
+                for i in range(len(yakushokumei)):
+                    yakushoku_name_label[i].destroy()
+                    yakushoku_counter_label[i].destroy()
+                    yakushoku_num_ups[i].destroy()
+                    yakushoku_num_downs[i].destroy()
+                
+                settei_setsumei_label = tkinter.Label(frame, text="詳細設定。デフォルトの設定でプレイしてください")
+                settei_setsumei_label.place(x=200, y=200)
+                
+                ryokai_button = tkinter.Button(frame, text="ゲームスタート", command=lambda:next_page(5))
+                ryokai_button.place(x=300, y=400)
+                
+            # **********************************************************
+            # 第５画面　夜の行動
+            # **********************************************************
+        
+            elif index == 5:
+                
+                # 夜にカウンター更新
+                day_counter += 1
+                
+                 # ボタンを消す
+                children = frame.winfo_children()
+                for child in children:
+                    child.destroy()
+                
+                # ラベル
+                title_label = tkinter.Label(frame, text="夜の行動", font=("System", 24))
+                title_label.place(x=300, y=50)
+                
+                # 夜の行動での死亡者の名前を入れるリスト
+                deadplayer_at_night = []
+                
+                # 本人確認画面を表示する
+                def announce_player_at_night(i):
+                    global players
+                    if tkinter.messagebox.showinfo("情報", players[i].name + "さんの順番です"):
+                        # 確認が終わったら夜の行動
+                        nightaction(i)
+                
+                # 夜の行動（一人分）
+                def nightaction(i):
+                    global players
+                    
+                    # 職業と説明を表示する
+                    shokugyousenkoku_label = tkinter.Label(frame, text=players[i].name + "さんの職業は「 " + players[i].jobname + " 」です\n" + players[i].jobcomment, font=("System", 20), bg="lightgray")
+                    shokugyousenkoku_label.place(x=100, y=100)
+                    
+                    # ボタンを表示する
+                    players[i].button_at_night()
+                    
+                    # 決定ボタン
+                    yoruno_koudoukettei_button = tkinter.Button(frame, text="決定", command=lambda:next_nightaction(koudoutyu))
+                    yoruno_koudoukettei_button.place(x=400,y=300)
+                
+                # 行動完了後、ボタンを消して次の人の行動
+                def next_nightaction(i):
+                    global koudoutyu, selected_player
+                    
+                    # 生きているプレイヤーは夜の行動を反映
+                    if players[i].is_arrive:
+                        
+                        # 人狼とそれ以外で処理を分ける
+                        if players[i].jobname == "人狼":
+                            players[i].night_action(selected_player, 1)
+                        else:
+                            players[i].night_action(selected_player)
+                    
+                    # ボタンを消す
+                    children = frame.winfo_children()
+                    for child in children:
+                        child.destroy()
+                        
+                    # 次のプレイヤーがいるなら行動中のプレイヤーを切り替えてボタン配置
+                    if koudoutyu < len(players) - 1:
+                        koudoutyu += 1
+                        selected_player = None
+                        announce_player_at_night(koudoutyu)
+                        
+                    # 次のプレイヤーがいないなら夜の行動の結果集約
+                    else:
+                        
+                        # 人狼に狙われた人を出す
+                        is_jinros_target = players[0]
+                        for i in range(len(players)):
+                            # 人狼からの投票が多い人を格納する
+                            if players[i].jinros_target > is_jinros_target.jinros_target:
+                                is_jinros_target = players[i]
+                            # 人狼からの投票が同じ数ならランダムで選ばれる
+                            elif players[i].jinros_target == is_jinros_target.jinros_target:
+                                rand_1_or_0 = random.randint(0,1)
+                                if rand_1_or_0 == 0:
+                                    is_jinros_target = players[i]
+                        
+                        # 人狼に狙われた人がサイコキラーならランダムな人狼が死亡
+                        if is_jinros_target.jobname == "サイコキラー":
+                            # ランダムな人狼から一人選び、生存フラグをオフにして死亡者リストへ入れる
+                            rand_selected_jinro = rand_jinros.pop(0)
+                            for i in range(len(players)):
+                                if players[i].name == rand_selected_jinro:
+                                    players[i].is_arrive = False
+                                    deadplayer_at_night.append(players[i].name)
+                                    # 生存者カウントを減らす
+                                    players[i].live_count_down()
+                        elif is_jinros_target.jobname == "ボマー" and is_jinros_target.bakudan_flag == 1:
+                            # 爆弾起動中ならランダムな人狼から一人選び、生存フラグをオフにして死亡者リストへ入れる
+                            rand_selected_jinro = rand_jinros.pop(0)
+                            for i in range(len(players)):
+                                if players[i].name == rand_selected_jinro:
+                                    players[i].is_arrive = False
+                                    deadplayer_at_night.append(players[i].name)
+                                    # 生存者カウントを減らす
+                                    players[i].live_count_down()
+                        elif is_jinros_target.kishis_gard or is_jinros_target.jobname == "脱獄犯":
+                            # 騎士に守られている場合とターゲットが脱獄犯だった場合は何も起きない
+                            pass
+                        else:
+                            # サイコキラーでないなら人狼に狙われた人が死亡
+                            is_jinros_target.is_arrive = False
+                            deadplayer_at_night.append(is_jinros_target.name)
+                            # 生存者カウントを減らす
+                            is_jinros_target.live_count_down()
+        
+                        # サイコキラーやボマーに関わってたら死亡
+                        for i in range(len(players)):
+                            if players[i].abunai_koudou == True:
+                                players[i].is_arrive = False
+                                deadplayer_at_night.append(players[i].name)
+                                players[i].live_count_down()
+                                
+                        # ラベル
+                        title_label = tkinter.Label(frame, text="夜の行動の結果", font=("System", 24))
+                        title_label.place(x=300, y=50)
+                        
+                        # 夜の行動での死亡者を宣告する
+                        giseishasenkoku = tkinter.Label(frame, text="昨晩の犠牲者：")
+                        giseishasenkoku.place(x=100, y=150)
+                        if len(deadplayer_at_night) > 0:
+                            for i in range(len(deadplayer_at_night)):
+                                giseishaname = tkinter.Label(frame, text=deadplayer_at_night[i] + "さん")
+                                giseishaname.place(x=100, y=200+i*30)
+                        else:
+                            giseishaname = tkinter.Label(frame, text="昨晩は犠牲者が出ませんでした")
+                            giseishaname.place(x=100, y=200)
+        
+                        # 疑われているプレイヤーの発表
+                        utagaware = players[0]
+                        for i in range(len(players)):
+                            if utagaware.is_arrive == False:
+                                utagaware = players[i]
+                            # 投票が多いプレイヤーが格納される
+                            elif players[i].vote > utagaware.vote and players[i].is_arrive:
+                                utagaware = players[i]
+                            # 投票結果が同じであればランダムに選ぶ
+                            elif players[i].vote == utagaware.vote and players[i].is_arrive:
+                                rand_1_or_0 = random.randint(0,1)
+                                if rand_1_or_0 == 0:
+                                    utagaware = players[i]
+        
+                        utagaware_senkoku = tkinter.Label(frame, text="人狼と疑われているのは" + utagaware.name + "さんです")
+                        utagaware_senkoku.place(x=100, y=400)
+                        
+                        # OKボタン
+                        ok_button = tkinter.Button(frame, text="次へ", command=shuryohantei)
+                        ok_button.place(x=300, y=100)
+                        
+                # 実行
+                announce_player_at_night(koudoutyu)
+                
+                # 勝利条件をチェック
+                def shuryohantei():
+                    global index, koudoutyu, bakudan_flag
+                    if Jinro_team.win_check(self=Jinro_team) or Shimin_team.win_check(self=Shimin_team):
+                        # 結果発表画面へ
+                        index = 8
+                        main()
+                    else:
+                        # 昼の話し合い画面へ
+                        index = 6
+                        # 夜の死亡者リストと各フラグをリセットする
+                        deadplayer_at_night.clear()
+                        koudoutyu = 0
+                        for i in range(len(players)):
+                            players[i].reset_vote()
+                            players[i].reset_jinros_target()
+                            players[i].reset_kishis_gard()
+                            players[i].abunai_koudou = False
+                        # 爆弾が起動していたらフラグを進める
+                        if bakudan_flag == 1:
+                            bakudan_flag = 2
+                        main()
+        
+            # **********************************************************
+            # 第６画面　話し合い
+            # **********************************************************
+            
+            elif index == 6:
+                global minutes_1, minutes_2, seconds_1, seconds_2, timer_label
+                
+                # ボタンを消す
+                children = frame.winfo_children()
+                for child in children:
+                    child.destroy()
+                
+                # ラベル
+                title_label = tkinter.Label(frame, text="話し合いを開始してください", font=("System", 24))
+                title_label.place(x=200, y=50)
+                
+                # 残り時間（デフォルトは５分）
+                minutes_1 = 0
+                minutes_2 = 5
+                seconds_1 = 0
+                seconds_2 = 0
+                
+                # タイマーを動かす
+                def timer_main():
+                    global minutes_1, minutes_2, seconds_1, seconds_2, timer_label
+                    if minutes_1 > 0 or minutes_2 >0 or seconds_1 > 0 or seconds_2 > 0:
+                        
+                        if seconds_2 == 0:
+                            seconds_2 = 9
+                            if seconds_1 == 0:
+                                seconds_1 = 5
+                                if minutes_2 == 0:
+                                    minutes_2 = 9
+                                    minutes_1 -= 1
+                                else:
+                                    minutes_2 -= 1
+                            else:
+                                seconds_1 -= 1
+                        else:
+                            seconds_2 -= 1
+                        timer_label["text"] = str(minutes_1)+str(minutes_2)+" 分 "+str(seconds_1)+str(seconds_2)+" 秒"
+                        timer_label.update()
+                        
+                    if minutes_1 > 0 or minutes_2 >0 or seconds_1 > 0 or seconds_2 > 0:
+                        frame.after(1000, timer_main)
+        
+                # 残り時間を増やす
+                def minutes_up():
+                    global minutes_1, minutes_2, seconds_1, seconds_2, timer_label
+                    if minutes_1 < 6:
+                        if minutes_2 == 9:
+                            minutes_2 = 0
+                            minutes_1 += 1
+                        else:
+                            minutes_2 += 1
+                    timer_label["text"] = str(minutes_1)+str(minutes_2)+" 分 "+str(seconds_1)+str(seconds_2)+" 秒"
+                    timer_label.update()
+                
+                # 残り時間表示ラベル
+                timer_label = tkinter.Label(frame, text=str(minutes_1)+str(minutes_2)+" 分 "+str(seconds_1)+str(seconds_2)+" 秒", font=("Helvetica", 24))
+                timer_label.place(x=200, y=200)
+                
+                # 残り時間を増やすボタン
+                minutes_up_button = tkinter.Button(frame, text="残り時間を1分増やす", command=minutes_up)
+                minutes_up_button.place(x=200, y=250)
+                
+                # タイマー実行
+                timer_main()
+                
+                # 次のページへ
+                def next_page_7():
+                    global minutes_1, minutes_2, seconds_1, seconds_2, index
+                    minutes_1 = 0
+                    minutes_2 = 0
+                    seconds_1 = 0
+                    seconds_2 = 0
+                    index = 7
+                    main()
+                
+                # 話し合い終了ボタン
+                hanashiai_shuryo_button = tkinter.Button(frame, text="話し合いを終える", command=next_page_7)
+                hanashiai_shuryo_button.place(x=200, y=400)
+            
+            # **********************************************************
+            # 第７画面　投票画面
+            # **********************************************************
+        
+            elif index == 7:
+                
+                # ボタンを消す
+                children = frame.winfo_children()
+                for child in children:
+                    child.destroy()
+                
+                # 本人確認画面を表示する
+                def announce_player_at_daytime(i):
+                    global players
+                    if tkinter.messagebox.showinfo("情報", players[i].name + "さんの順番です"):
+                        # 確認が終わったら夜の行動
+                        daytimeaction(i)
+                        
+                # 昼の行動（一人分）
+                def daytimeaction(i):
+                    global players
+                    
+                    # 名前を表示する
+                    shokugyousenkoku_label = tkinter.Label(frame, text=players[i].name + "さんの投票", font=("System", 20), bg="lightgray")
+                    shokugyousenkoku_label.place(x=100, y=100)
+                    
+                    # ボタンを表示する
+                    players[i].button_at_daytime()
+                    
+                    # 決定ボタン
+                    hiruno_koudoukettei_button = tkinter.Button(frame, text="決定", command=lambda:next_daytimeaction(koudoutyu))
+                    hiruno_koudoukettei_button.place(x=400,y=300)
+                
+                # 行動完了後、ボタンを消して次の人の行動
+                def next_daytimeaction(i):
+                    global koudoutyu
+                    
+                    # 生きているプレイヤーは夜の行動を反映
+                    if players[i].is_arrive:
+                        players[i].daytime_action(selected_player)
+                    
+                    # ボタンを消す
+                    children = frame.winfo_children()
+                    for child in children:
+                        child.destroy()
+                        
+                    # 次のプレイヤーがいるなら行動中のプレイヤーを切り替えてボタン配置
+                    if koudoutyu < len(players) - 1:
+                        koudoutyu += 1
+                        announce_player_at_daytime(koudoutyu)
+                        
+                    # 次のプレイヤーがいないなら投票結果集約
+                    else:
+                        
+                        # 投票結果
+                        voted_player = players[0]
+                        for i in range(len(players)):
+                            if voted_player.is_arrive == False:
+                                voted_player = players[i]
+                            # 投票が多いプレイヤーが格納される
+                            elif players[i].vote > voted_player.vote and players[i].is_arrive:
+                                voted_player = players[i]
+                            # 投票結果が同じであればランダムに選ぶ
+                            elif players[i].vote == voted_player.vote and players[i].is_arrive:
+                                rand_1_or_0 = random.randint(0,1)
+                                if rand_1_or_0 == 0:
+                                    voted_player = players[i]
+                                    
+                        # 夜の行動での死亡者を宣告する
+                        giseishasenkoku = tkinter.Label(frame, text="投票の結果・・・" + voted_player.name + "さんが処刑されました")
+                        giseishasenkoku.place(x=100, y=150)
+                        
+                        voted_player.is_arrive = False
+                        voted_player.live_count_down()
+        
+                        
+                        
+                        
+        
+                        # OKボタン
+                        ok_button = tkinter.Button(frame, text="次へ", command=shuryohantei_2)
+                        ok_button.place(x=300, y=100)
+                
+                # 勝利条件をチェック
+                def shuryohantei_2():
+                    global index, koudoutyu
+                    if Jinro_team.win_check(self=Jinro_team) or Shimin_team.win_check(self=Shimin_team):
+                        # 結果発表画面へ
+                        index = 8
+                        main()
+                    else:
+                        # 決着が付いていなかったら夜の行動へ
+                        if tkinter.messagebox.showinfo("情報", "また恐ろしい夜がやってきました。\n\n" + players[0].name + "さんから\n夜の行動を開始してください"):
+                            index = 5
+                            
+                        # 投票数をリセットする
+                        for i in range(len(players)):
+                            players[i].reset_vote()
+                        
+                        # リセット
+                        koudoutyu = 0
+                        
+                        main()
+                
+                if tkinter.messagebox.showinfo("情報", players[0].name + "さんから\n投票を開始してください"):
+                    announce_player_at_daytime(koudoutyu)
+        
+            # **********************************************************
+            # 第８画面　結果発表
+            # **********************************************************
+        
+            # 結果発表画面
+            elif index == 8:
+                
+                # ボタンを消す
+                children = frame.winfo_children()
+                for child in children:
+                    child.destroy()
+                
+                # ラベル
+                title_label = tkinter.Label(frame, text="結果発表", font=("System", 24))
+                title_label.place(x=200, y=50)
+        
+                # 各プレイヤーが勝っているか確かめる
+                for i in range(len(players)):
+                    players[i].self_win_check()
+        
+                # 勝利チーム発表
+                if Jinro_team.team_win:
+                    # ラベル
+                    win_team_label = tkinter.Label(frame, text="人狼チームの勝利", font=("System", 30), bg="lightblue")
+                    win_team_label.place(x=200, y=150)
+                elif Shimin_team.team_win:
+                    # ラベル
+                    win_team_label = tkinter.Label(frame, text="市民チームの勝利", font=("System", 30), bg="lightblue")
+                    win_team_label.place(x=200, y=150)
+                else:
+                    # ラベル
+                    win_team_label = tkinter.Label(frame, text="勝利チーム無し", font=("System", 30), bg="lightblue")
+                    win_team_label.place(x=200, y=150)
+        
+                # 勝利プレイヤー発表
+                win_label = tkinter.Label(frame, text="<勝利プレイヤー>", font=("System", 24))
+                win_label.place(x=200, y=250)
+                win_num = 0
+                for i in range(len(players)):
+                    if players[i].win:
+                        win_player_label = tkinter.Label(frame, text=players[i].name + "さん（" + players[i].jobname + "）", font=("System", 24))
+                        win_player_label.place(x=200, y=280 + win_num * 30)
+                        win_num += 1
+                
+                # 全てリセット
+                def ninzu_henkou():
+                    global day_counter,player_num,player_widget_label,player_widget,player_name,yakushoku_name_label,yakushoku_counter_label,yakushoku_num_ups,yakushoku_num_downs,jinro_num,tajujinkaku_num,datsugokuhan_num,saikokira_num,shimin_num,uranaishi_num,reibaishi_num,kishi_num,shintakusha_num,kosupureiya_num,boma_num,yakushoku_nums,jinro_num,tajujinkaku_num,datsugokuhan_num,saikokira_num,shimin_num,uranaishi_num,reibaishi_num,kishi_num,shintakusha_num,kosupureiya_num,boma_num,jinros,players,num_list,name_labels,name_buttons,name_label_counter,name_button_counter,shibousenkoku_label_counter,koudoutyu, index
+                    
+                    player_num = 2
+                    player_widget_label.clear()
+                    player_widget.clear()
+                    player_name.clear()
+                    yakushoku_name_label.clear()
+                    yakushoku_counter_label.clear()
+                    yakushoku_num_ups.clear()
+                    yakushoku_num_downs.clear()
+                    yakushoku_nums[0] = 1
+                    yakushoku_nums[1] = 0
+                    yakushoku_nums[2] = 0
+                    yakushoku_nums[3] = 0
+                    yakushoku_nums[4] = 1
+                    yakushoku_nums[5] = 0
+                    yakushoku_nums[6] = 0
+                    yakushoku_nums[7] = 0
+                    yakushoku_nums[8] = 0
+                    yakushoku_nums[9] = 0
+                    yakushoku_nums[10] = 0
+                    
+                    index = 1
+                    main()
+                # 人数設定に戻るボタン
+                ninzu_henkou_button = tkinter.Button(frame, text="プレイヤー情報を変更して\nもう一度プレイ", height=2, width=20, bg="red", command=ninzu_henkou)
+                ninzu_henkou_button.place(x=200, y=280 + win_num * 30 + 50)
+                
+                # 人数と名前はそのままでそれ以外をリセット
+                def yakuwari_henkou():
+                    global day_counter,player_num,player_widget_label,player_widget,player_name,yakushoku_name_label,yakushoku_counter_label,yakushoku_num_ups,yakushoku_num_downs,jinro_num,tajujinkaku_num,datsugokuhan_num,saikokira_num,shimin_num,uranaishi_num,reibaishi_num,kishi_num,shintakusha_num,kosupureiya_num,boma_num,yakushoku_nums,jinro_num,tajujinkaku_num,datsugokuhan_num,saikokira_num,shimin_num,uranaishi_num,reibaishi_num,kishi_num,shintakusha_num,kosupureiya_num,boma_num,jinros,players,num_list,name_labels,name_buttons,name_label_counter,name_button_counter,shibousenkoku_label_counter,koudoutyu, index
+                    
+                    yakushoku_name_label.clear()
+                    yakushoku_counter_label.clear()
+                    yakushoku_num_ups.clear()
+                    yakushoku_num_downs.clear()
+                    yakushoku_nums[0] = 1
+                    yakushoku_nums[1] = 0
+                    yakushoku_nums[2] = 0
+                    yakushoku_nums[3] = 0
+                    yakushoku_nums[4] = 1
+                    yakushoku_nums[5] = 0
+                    yakushoku_nums[6] = 0
+                    yakushoku_nums[7] = 0
+                    yakushoku_nums[8] = 0
+                    yakushoku_nums[9] = 0
+                    yakushoku_nums[10] = 0
+                    
+                    index = 3
+                    main()
+                # 役職の割り振りを変えるボタン
+                yakuwari_henkou_button = tkinter.Button(frame, text="役職編成を変更して\nもう一度プレイ", height=2, width=20, bg="red", command=yakuwari_henkou)
+                yakuwari_henkou_button.place(x=200, y=280 + win_num * 30 + 100)
+                
+                # 人数と役職の設定以外をリセットしてもう一度ランダムな職業を割り当てる
+                def restart():
+                    # ランダムに役を割り当てた後にindex4へ接続される
+                    yakushokuketteigo()
+                    
+                # 同じ条件でスタートするボタン
+                restart_button = tkinter.Button(frame, text="同じ条件で\nもう一度プレイ", height=2, width=20, bg="red", command=restart)
+                restart_button.place(x=200, y=280 + win_num * 30 + 150)
+                
+                # 画面を閉じる操作
+                def game_shuryo():
+                    root.destroy()
+                # 終了ボタン
+                game_shuryo_button = tkinter.Button(frame, text="ゲームを終了する", height=2, width=20, bg="red", command=game_shuryo)
+                game_shuryo_button.place(x=200, y=280 + win_num * 30 + 200)
+                
+                # *********************************************
+                # 共通のリセット操作
+                # *********************************************
+                
+                Jinro_team.live_count = 0
+                Jinro_team.team_win = False
+                Shimin_team.live_count = 0
+                Shimin_team.team_win = False
+                day_counter = 0
+                boma_num = 0
+                jinros.clear()
+                players.clear()
+                num_list.clear()
+                name_labels.clear()
+                name_buttons.clear()
+                name_label_counter = 0
+                name_button_counter = 0
+                shibousenkoku_label_counter = 0
+                koudoutyu = 0
+                
+                
+                
+        # **********************************************************
+        # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # **********************************************************
+        
+        # main実行
+        main()
+        
+        # ウィンドウ表示
+        root.mainloop()
+
+
+        <!-- ここまでpythonで記述 -->
+
+    </py-script>
+</body>
+</html>
